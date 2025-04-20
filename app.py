@@ -426,9 +426,31 @@ def get_pulsation_predictions(features):
 
 
 def get_kic_list():
-    KIC_No_List = st.text_input('KIC Number').split(",")
+
+    input = st.text_input('KIC Number')
+    if input == "":
+        return []
+    
+    KIC_No_List = input.split(",")
     KIC_No_List = [kic for kic in KIC_No_List if kic != " "]
     return KIC_No_List
+
+
+def get_inputs_from_upload(KIC_No_List):
+
+    KIC_No_List_old = KIC_No_List
+
+    uploaded_file = st.file_uploader("Choose a file", type=["txt"])  
+    if uploaded_file is not None:
+    # Display the file name
+        st.write("Filename:", uploaded_file.name) 
+        if uploaded_file.name.endswith('.txt'):
+            # Read the TXT file
+            text = uploaded_file.read().decode("utf-8")
+            KIC_No_List = st.text_area("File Content", text, height=300, disabled=True).split("\r\n")
+            return KIC_No_List
+        
+    return KIC_No_List_old
 
 # loading saved models
 c1_model = pickle.load(open("classifier_1.sav",'rb'))
@@ -451,15 +473,24 @@ with st.sidebar:
 if (selected == 'All Predictons'):
     
     # page title
-    st.title('Pulsation Types, Pure Binary and Binary + Pulsation Prediction')    
+    st.title('Pulsation Types, Pure Binary and Binary + Pulsation Prediction')  
+
+    text = ''
+    KIC_No_List = []
     col1,col2 = st.columns(2)
     with col1:
         KIC_No_List = get_kic_list()
-        
+ 
+    KIC_No_List = get_inputs_from_upload(KIC_No_List)   
+
     col_names = ["KIC number", "Main Class", "Variable Class"]
     my_df  = pd.DataFrame(columns = col_names) 
     # creating a button for prediction 
-    if st.button('Type of  the star'):
+    if st.button('Type of the star'):
+
+        if len(KIC_No_List) == 0:
+            st.error(f"Enter at leaset one KIC number")
+            st.stop()
 
         if len(KIC_No_List) == 1:
             isPlot = True
@@ -504,10 +535,7 @@ if (selected == 'All Predictons'):
         mime="text/csv",
         icon=":material/download:")
 
-        if st.button('Clear'):
-            st.session_state["KIC_input"] = ""
-            st.session_state["prediction_df"] = pd.DataFrame(columns=["KIC number", "Main Class", "Variable Class"])
-            st.experimental_rerun()
+       
                 
         
 # Main Prediction page
@@ -515,15 +543,23 @@ if (selected == 'Main Prediction'):
     
     # page title
     st.title('Pulsation, Pure Binary and Binary + Pulsation Prediction')    
+    text = ''
+    KIC_No_List = []
     col1,col2 = st.columns(2)
     with col1:
          KIC_No_List = get_kic_list()
+    
+    KIC_No_List = get_inputs_from_upload(KIC_No_List)
 
     col_names = ["KIC number", "Main Class"]
     my_df  = pd.DataFrame(columns = col_names) 
     
     # creating a button for prediction 
     if st.button('Type of  the star'):
+
+        if len(KIC_No_List) == 0:
+            st.error(f"Enter at leaset one KIC number")
+            st.stop()
 
         if len(KIC_No_List) == 1:
             isPlot = True
@@ -558,27 +594,30 @@ if (selected == 'Main Prediction'):
         file_name="main-prediction-results.csv",
         mime="text/csv",
         icon=":material/download:")
-
-        if st.button('Clear'):
-            st.session_state["KIC_input"] = ""
-            st.session_state["prediction_df"] = pd.DataFrame(columns=["KIC number", "Main Class"])
-            st.experimental_rerun()
-            
+         
 
 # Pulsation Prediction page
 if (selected == 'Pulsation stars'):
     
     # page title
     st.title('Pulsation Type Prediction')  
+    text = ''
+    KIC_No_List = []
     col1,col2 = st.columns(2)
     with col1:
         KIC_No_List = get_kic_list()
+    
+    KIC_No_List = get_inputs_from_upload(KIC_No_List)
 
     col_names = ["KIC number", "Variable Class"]
     my_df  = pd.DataFrame(columns = col_names) 
 
     # creating a button for prediction    
     if st.button('Type of  the star'):
+
+        if len(KIC_No_List) == 0:
+            st.error(f"Enter at leaset one KIC number")
+            st.stop()
 
         if len(KIC_No_List) == 1:
             isPlot = True
@@ -615,8 +654,4 @@ if (selected == 'Pulsation stars'):
         mime="text/csv",
         icon=":material/download:")
 
-        if st.button('Clear'):
-            st.session_state["KIC_input"] = ""
-            st.session_state["prediction_df"] = pd.DataFrame(columns=["KIC number", "Variable Class"])
-            st.experimental_rerun()
             
