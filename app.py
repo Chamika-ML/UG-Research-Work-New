@@ -160,6 +160,25 @@ def fourier_comp(time,flux):
     return f1
 
 
+def feature_genarate0(flux,err):
+ 
+    flux_vec = flux[0]
+    err_vec = err[0]
+
+    # basic stat features
+    median = np.median(flux_vec)
+    
+    std = np.std(flux_vec)  
+    SSDM = np.sum((flux_vec-median)**2)
+    MAD = np.median(abs(flux_vec - median))  
+    ROMS = Robust_median_statistic(flux_vec,err_vec)
+   
+    
+    feature_list = [std, SSDM, MAD, ROMS]
+
+    return feature_list
+
+
 def feature_genarate1(time,flux,err):
      
     feature_list = []
@@ -349,7 +368,7 @@ def download_lightcurves(kic_number):
 
     for i in range(2):
         try:
-            lc  = lk.search_lightcurve(kic_number, author = 'Kepler', cadence = 'long', quarter = 9).download()
+            lc  = lk.search_lightcurve(kic_number, author = 'Kepler', cadence = 'long', quarter=9).download()
             break
         except:
             pass
@@ -388,6 +407,19 @@ def preprocess_data(time_t,flux_t,err_t):
         err_p = np.array([new_df.err.tolist()])
 
         return time_p, flux_p, err_p
+
+
+def get_non_variable_prediction(features):
+
+    final_reult = '' # final result 
+    features = features.reshape(1,-1)
+
+    if c0_model.predict(features)[0] == 0:
+        final_reult = "Non Variable"
+    else:
+        final_reult = "Variable"
+
+    return final_reult
 
 
 def get_main_prediction(features):
@@ -440,11 +472,11 @@ def get_inputs_from_upload(KIC_No_List):
 
     KIC_No_List_old = KIC_No_List
 
-    uploaded_file = st.file_uploader("Choose a file", type=["txt"])  
+    uploaded_file = st.file_uploader("Choose a file", type=["txt", "dat"])  
     if uploaded_file is not None:
     # Display the file name
         st.write("Filename:", uploaded_file.name) 
-        if uploaded_file.name.endswith('.txt'):
+        if uploaded_file.name.endswith(('.txt', '.dat')):
             # Read the TXT file
             text = uploaded_file.read().decode("utf-8")
             KIC_No_List = st.text_area("File Content", text, height=300, disabled=True).split("\r\n")
@@ -453,6 +485,7 @@ def get_inputs_from_upload(KIC_No_List):
     return KIC_No_List_old
 
 # loading saved models
+c0_model = pickle.load(open("classifier_0.sav",'rb'))
 c1_model = pickle.load(open("classifier_1.sav",'rb'))
 c2_model = pickle.load(open("classifier_2.sav",'rb'))
 c3_model = pickle.load(open("classifier_3.sav",'rb'))
@@ -462,9 +495,9 @@ c3_model = pickle.load(open("classifier_3.sav",'rb'))
 with st.sidebar:
     
     selected = option_menu('Variable Star Classification System',
-                           ['All Predictons', 'Main Prediction', 'Pulsation stars'],
+                           ['All Predictons', 'Main Prediction'],
                            
-                           icons = ['house','stars','heart-pulse-fill'], # icons from bootstrap website
+                           icons = ['house','stars'], # icons from bootstrap website
                            
                            default_index = 0) # default_index is defalut selected page
 
@@ -506,20 +539,30 @@ if (selected == 'All Predictons'):
                 st.error(f"No light curve found for the selected target: KIC {KIC_No}")
             else:
                 time_p, flux_p, err_p = preprocess_data(time_t,flux_t,err_t)
-                feature_set1 = np.array(feature_genarate1(time_p,flux_p,err_p))
-                primary_reult = get_main_prediction(feature_set1)
 
-                if primary_reult == "Pulsation":
-                    feature_set2 = np.array(feature_genarate3(time_p,flux_p,err_p))
-                    secondary_reult = get_pulsation_predictions(feature_set2)
-                    st.success(f"KIC {KIC_No} is a {secondary_reult} {primary_reult} star") # display result 
-                    if isPlot:   
-                        plot(time_p[0],flux_p[0])
+                # find the given star is a variable or non-variable
+                feature_set0 = np.array(feature_genarate0(flux_p,err_p))
+                non_variable_reult = get_non_variable_prediction(feature_set0)
+
+                if non_variable_reult=="Variable":
+                    feature_set1 = np.array(feature_genarate1(time_p,flux_p,err_p))
+                    primary_reult = get_main_prediction(feature_set1)
+
+                    if primary_reult == "Pulsation":
+                        feature_set2 = np.array(feature_genarate3(time_p,flux_p,err_p))
+                        secondary_reult = get_pulsation_predictions(feature_set2)
+                        st.success(f"KIC {KIC_No} is a {secondary_reult} {primary_reult} star") # display result 
+                        if isPlot:   
+                            plot(time_p[0],flux_p[0])
+                    else:
+                        secondary_reult = ""
+                        st.success(f"KIC {KIC_No} is a {primary_reult} star") # display result 
+                        if isPlot:   
+                            plot(time_p[0],flux_p[0])
                 else:
+                    st.error(f"KIC {KIC_No} is a {non_variable_reult} star") # display result 
+                    primary_reult = "Non Variable"
                     secondary_reult = ""
-                    st.success(f"KIC {KIC_No} is a {primary_reult} star") # display result 
-                    if isPlot:   
-                        plot(time_p[0],flux_p[0])
 
             my_df.loc[i] = [KIC_No, primary_reult, secondary_reult]
 
@@ -574,12 +617,21 @@ if (selected == 'Main Prediction'):
                 st.error(f"No light curve found for the selected target: KIC {KIC_No}")
             else:
                 time_p, flux_p, err_p = preprocess_data(time_t,flux_t,err_t)
-                feature_set1 = np.array(feature_genarate1(time_p,flux_p,err_p))
-                primary_reult = get_main_prediction(feature_set1)
 
-                st.success(f"KIC {KIC_No} is a {primary_reult} star") # display result 
-                if isPlot:   
-                    plot(time_p[0],flux_p[0])
+                # find the given star is a variable or non-variable
+                feature_set0 = np.array(feature_genarate0(flux_p,err_p))
+                non_variable_reult = get_non_variable_prediction(feature_set0)
+
+                if non_variable_reult=="Variable":
+                    feature_set1 = np.array(feature_genarate1(time_p,flux_p,err_p))
+                    primary_reult = get_main_prediction(feature_set1)
+
+                    st.success(f"KIC {KIC_No} is a {primary_reult} star") # display result 
+                    if isPlot:   
+                        plot(time_p[0],flux_p[0])
+                else:
+                    st.error(f"KIC {KIC_No} is a {non_variable_reult} star") # display result 
+                    primary_reult = "Non Variable"
 
             my_df.loc[i] = [KIC_No, primary_reult]
 
@@ -595,63 +647,4 @@ if (selected == 'Main Prediction'):
         mime="text/csv",
         icon=":material/download:")
          
-
-# Pulsation Prediction page
-if (selected == 'Pulsation stars'):
-    
-    # page title
-    st.title('Pulsation Type Prediction')  
-    text = ''
-    KIC_No_List = []
-    col1,col2 = st.columns(2)
-    with col1:
-        KIC_No_List = get_kic_list()
-    
-    KIC_No_List = get_inputs_from_upload(KIC_No_List)
-
-    col_names = ["KIC number", "Variable Class"]
-    my_df  = pd.DataFrame(columns = col_names) 
-
-    # creating a button for prediction    
-    if st.button('Type of  the star'):
-
-        if len(KIC_No_List) == 0:
-            st.error(f"Enter at leaset one KIC number")
-            st.stop()
-
-        if len(KIC_No_List) == 1:
-            isPlot = True
-        else:
-            isPlot = False
-
-        for i,KIC_No in enumerate(KIC_No_List):
-
-            time_t, flux_t, err_t = download_lightcurves(KIC_No)
-
-            if time_t == []:
-                primary_reult = ""
-                st.error(f"No light curve found for the selected target: KIC {KIC_No}")
-            else:      
-                time_p, flux_p, err_p = preprocess_data(time_t,flux_t,err_t)
-                feature_set3 = np.array(feature_genarate3(time_p,flux_p,err_p))
-                primary_reult = get_pulsation_predictions(feature_set3)
-            
-                st.success(f"KIC {KIC_No} is a {primary_reult} star")
-                if isPlot:   
-                    plot(time_p[0],flux_p[0]) 
-
-            my_df.loc[i] = [KIC_No, primary_reult]  
-        
-        my_df.index = my_df.index + 1
-        my_df.index.name = "No"
-        st.table(my_df)
-        csv = my_df.to_csv().encode("utf-8")
-
-        st.download_button(
-        label="Download CSV",
-        data=csv,
-        file_name="pulsation-prediction-results.csv",
-        mime="text/csv",
-        icon=":material/download:")
-
             
